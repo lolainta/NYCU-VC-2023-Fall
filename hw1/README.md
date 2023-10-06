@@ -1,7 +1,7 @@
 # HW1 Color Transformation
 
 ## Requirements
-- go
+- [gp](https://go.dev)
 
 ## Usage
 
