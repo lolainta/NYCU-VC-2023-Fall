@@ -18,6 +18,11 @@ func write_png(filename string, img image.Image) {
 }
 
 func main() {
+	log.SetFlags(log.Lshortfile)
+	if len(os.Args) != 2 {
+		log.Println("Usage: go run main.go <input.png>")
+		return
+	}
 	infile, err := os.Open(os.Args[1])
 	if err != nil {
 		log.Println(err)
