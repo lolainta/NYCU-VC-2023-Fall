@@ -8,24 +8,27 @@ import (
 	"os"
 )
 
+func write_png(filename string, img image.Image) {
+	ofile, err := os.Create(filename)
+	if err != nil {
+		log.Println(err)
+	}
+	png.Encode(ofile, img)
+	ofile.Close()
+}
+
 func main() {
 	infile, err := os.Open(os.Args[1])
 	if err != nil {
-		// replace this with real error handling
-		// panic(err.String())
 		log.Println(err)
 	}
 	defer infile.Close()
 
 	src, err := png.Decode(infile)
-	log.Println(err)
 	if err != nil {
-		// panic(err.String())
+		log.Println(err)
 	}
 
-	// log.Println(src.ColorModel().Convert())
-	log.Print(src.Bounds())
-	log.Print(src.At(0, 0))
 	bounds := src.Bounds()
 	w, h := bounds.Max.X, bounds.Max.Y
 	r_channel := image.NewGray(bounds)
@@ -56,37 +59,13 @@ func main() {
 	}
 
 	os.Mkdir("output", 0777)
-
-	ofile, err := os.Create("output/r_channel.png")
-	png.Encode(ofile, r_channel)
-	ofile.Close()
-
-	ofile, err = os.Create("output/g_channel.png")
-	png.Encode(ofile, g_channel)
-	ofile.Close()
-
-	ofile, err = os.Create("output/b_channel.png")
-	png.Encode(ofile, b_channel)
-	ofile.Close()
-
-	ofile, err = os.Create("output/y_channel.png")
-	png.Encode(ofile, y_channel)
-	ofile.Close()
-
-	ofile, err = os.Create("output/u_channel.png")
-	png.Encode(ofile, u_channel)
-	ofile.Close()
-
-	ofile, err = os.Create("output/v_channel.png")
-	png.Encode(ofile, v_channel)
-	ofile.Close()
-
-	ofile, err = os.Create("output/cb_channel.png")
-	png.Encode(ofile, cb_channel)
-	ofile.Close()
-
-	ofile, err = os.Create("output/cr_channel.png")
-	png.Encode(ofile, cr_channel)
-	ofile.Close()
+	write_png("output/r_channel.png", r_channel)
+	write_png("output/g_channel.png", g_channel)
+	write_png("output/b_channel.png", b_channel)
+	write_png("output/y_channel.png", y_channel)
+	write_png("output/u_channel.png", u_channel)
+	write_png("output/v_channel.png", v_channel)
+	write_png("output/cb_channel.png", cb_channel)
+	write_png("output/cr_channel.png", cr_channel)
 
 }
