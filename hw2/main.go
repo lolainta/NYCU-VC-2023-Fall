@@ -58,6 +58,65 @@ func C(i int) float64 {
 	return 1
 }
 
+func dct_1d(img image.Image) [][]float64 {
+	bounds := img.Bounds()
+	w, h := bounds.Max.X, bounds.Max.Y
+	if w != h {
+		log.Println("Image is not square")
+		return nil
+	}
+	bar := progressbar.Default(int64(w + h))
+	reg := make([]float64, w*h)
+	for u := 0; u < w; u++ {
+		cw := make([]chan float64, h)
+		for v := 0; v < h; v++ {
+			cw[v] = make(chan float64)
+			go func(v int, c chan float64) {
+				ret := 0.0
+				for x := 0; x < w; x++ {
+					f, _, _, _ := img.At(x, v).RGBA()
+					r := float64(f) / 256
+					ret += float64(r) * math.Cos(
+						(float64(2*x+1)*float64(u)*math.Pi)/(2*float64(w)))
+				}
+				c <- ret * C(u) * math.Sqrt(2/float64(w))
+			}(v, cw[v])
+		}
+		bar.Add(1)
+		for v := 0; v < h; v++ {
+			reg[u*h+v] = <-cw[v]
+		}
+	}
+	for v := 0; v < h; v++ {
+		ch := make([]chan float64, w)
+		for u := 0; u < w; u++ {
+			ch[u] = make(chan float64)
+			go func(u int, c chan float64) {
+				ret := 0.0
+				for y := 0; y < h; y++ {
+					ret += reg[u*h+y] * math.Cos(
+						(float64(2*y+1)*float64(v)*math.Pi)/(2*float64(h)))
+				}
+				c <- ret * C(v) * math.Sqrt(2/float64(h))
+			}(u, ch[u])
+		}
+		bar.Add(1)
+		for u := 0; u < w; u++ {
+			reg[u*w+v] = <-ch[u]
+		}
+	}
+	ret := make([][]float64, w)
+	for i := 0; i < w; i++ {
+		ret[i] = make([]float64, h)
+	}
+	for i := 0; i < w; i++ {
+		for j := 0; j < h; j++ {
+			ret[i][j] = reg[i*h+j]
+		}
+	}
+	return ret
+}
+
 func dct_2d(img image.Image) [][]float64 {
 	bounds := img.Bounds()
 	w, h := bounds.Max.X, bounds.Max.Y
@@ -138,62 +197,26 @@ func idct_2d(freq [][]float64) image.Image {
 	}
 	return ret
 }
-func dct_1d(img image.Image) [][]float64 {
-	bounds := img.Bounds()
+
+func psnr(img1, img2 image.Image) float64 {
+	bounds := img1.Bounds()
 	w, h := bounds.Max.X, bounds.Max.Y
 	if w != h {
 		log.Println("Image is not square")
-		return nil
+		return 0
 	}
-	bar := progressbar.Default(int64(w + h))
-	reg := make([]float64, w*h)
-	for u := 0; u < w; u++ {
-		cw := make([]chan float64, h)
-		for v := 0; v < h; v++ {
-			cw[v] = make(chan float64)
-			go func(v int, c chan float64) {
-				ret := 0.0
-				for x := 0; x < w; x++ {
-					f, _, _, _ := img.At(x, v).RGBA()
-					r := float64(f) / 256
-					ret += float64(r) * math.Cos(
-						(float64(2*x+1)*float64(u)*math.Pi)/(2*float64(w)))
-				}
-				c <- ret * C(u) * math.Sqrt(2/float64(w))
-			}(v, cw[v])
-		}
-		bar.Add(1)
-		for v := 0; v < h; v++ {
-			reg[u*h+v] = <-cw[v]
-		}
-	}
-	for v := 0; v < h; v++ {
-		ch := make([]chan float64, w)
-		for u := 0; u < w; u++ {
-			ch[u] = make(chan float64)
-			go func(u int, c chan float64) {
-				ret := 0.0
-				for y := 0; y < h; y++ {
-					ret += reg[u*h+y] * math.Cos(
-						(float64(2*y+1)*float64(v)*math.Pi)/(2*float64(h)))
-				}
-				c <- ret * C(v) * math.Sqrt(2/float64(h))
-			}(u, ch[u])
-		}
-		bar.Add(1)
-		for u := 0; u < w; u++ {
-			reg[u*w+v] = <-ch[u]
-		}
-	}
-	ret := make([][]float64, w)
-	for i := 0; i < w; i++ {
-		ret[i] = make([]float64, h)
-	}
+	ret := 0.0
 	for i := 0; i < w; i++ {
 		for j := 0; j < h; j++ {
-			ret[i][j] = reg[i*h+j]
+			f1, _, _, _ := img1.At(i, j).RGBA()
+			f2, _, _, _ := img2.At(i, j).RGBA()
+			r1 := float64(f1) / 256
+			r2 := float64(f2) / 256
+			ret += math.Pow(r1-r2, 2)
 		}
 	}
+	ret /= float64(w * h)
+	ret = 10 * math.Log10(255*255/ret)
 	return ret
 }
 
@@ -231,7 +254,18 @@ func main() {
 	write_freq("output/dct_2d_freq.png", dct2)
 	log.Println("2d dct done")
 
-	log.Println("Start 2d idct...")
+	log.Println("Start 2d idct on dct_2d.png...")
 	idct2 := idct_2d(dct2)
 	write_png("output/idct_2d.png", idct2)
+	psnr2 := psnr(gray, idct2)
+	log.Println("PSNR:", psnr2)
+	log.Println("2d idct done")
+
+	log.Println("Start 2d idct on dct_1d.png...")
+	idct1 := idct_2d(dct1)
+	write_png("output/idct_1d.png", idct1)
+	psnr1 := psnr(gray, idct1)
+	log.Println("PSNR:", psnr1)
+	log.Println("1d idct done")
+
 }
