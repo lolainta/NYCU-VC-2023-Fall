@@ -5,7 +5,9 @@ import (
 	"image/color"
 	"image/png"
 	"log"
+	"math"
 	"os"
+	"time"
 )
 
 func write_png(filename string, img image.Image) {
@@ -19,6 +21,28 @@ func write_png(filename string, img image.Image) {
 		log.Println(err)
 	}
 	ofile.Close()
+}
+
+func psnr(img1, img2 image.Image) float64 {
+	bounds := img1.Bounds()
+	w, h := bounds.Max.X, bounds.Max.Y
+	if w != h {
+		log.Println("Image is not square")
+		return 0
+	}
+	ret := 0.0
+	for i := 0; i < w; i++ {
+		for j := 0; j < h; j++ {
+			f1, _, _, _ := img1.At(i, j).RGBA()
+			f2, _, _, _ := img2.At(i, j).RGBA()
+			r1 := float64(f1) / 256
+			r2 := float64(f2) / 256
+			ret += math.Pow(r1-r2, 2)
+		}
+	}
+	ret /= float64(w * h)
+	ret = 10 * math.Log10(255*255/ret)
+	return ret
 }
 
 func main() {
@@ -48,8 +72,31 @@ func main() {
 	if err != nil {
 		log.Println(err)
 	}
-	result := block_matching(src1, src2, 8, 8, 32)
-	write_png("result.png", result)
+
+	var start, end time.Time
+	var diff float64
+	var result image.Image
+
+	start = time.Now()
+	result = block_matching(src1, src2, 8, 8, 8)
+	end = time.Now()
+	diff = psnr(src1, result)
+	write_png("result8.png", result)
+	log.Printf("result8.png, time: %v, psnr: %v\n", end.Sub(start), diff)
+
+	start = time.Now()
+	result = block_matching(src1, src2, 8, 8, 16)
+	end = time.Now()
+	diff = psnr(src1, result)
+	write_png("result16.png", result)
+	log.Printf("result16.png, time: %v, psnr: %v\n", end.Sub(start), diff)
+
+	start = time.Now()
+	result = block_matching(src1, src2, 8, 8, 32)
+	end = time.Now()
+	diff = psnr(src1, result)
+	write_png("result32.png", result)
+	log.Printf("result32.png, time: %v, psnr: %v\n", end.Sub(start), diff)
 }
 
 func block_matching(src1, src2 image.Image, w, h, diff int) image.Image {
@@ -85,9 +132,9 @@ func match(src1, src2 image.Image, x, y, size, diff int) (retx, rety int) {
 			if x+i < 0 || x+i+size >= maxX || y+j < 0 || y+j+size >= maxY {
 				continue
 			}
-			sum := mse(src1, src2, x, y, x+i, y+j, size)
-			if sum < min {
-				min = sum
+			cur := mse(src1, src2, x, y, x+i, y+j, size)
+			if cur < min {
+				min = cur
 				retx = i
 				rety = j
 			}
@@ -101,7 +148,7 @@ func mse(src1, src2 image.Image, x1, y1, x2, y2, size int) (sum int64) {
 		for j := 0; j < size; j++ {
 			v1, _, _, _ := src1.At(x1+i, y1+j).RGBA()
 			v2, _, _, _ := src2.At(x2+i, y2+j).RGBA()
-			sum += int64((v1>>8)-(v2>>8)) * int64((v1>>8)-(v2>>8))
+			sum += int64((v1 - v2) * (v1 - v2))
 		}
 	}
 	return
