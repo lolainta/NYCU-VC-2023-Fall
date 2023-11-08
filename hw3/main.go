@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -45,6 +46,16 @@ func psnr(img1, img2 image.Image) float64 {
 	return ret
 }
 
+func eval(img1, img2 image.Image, diff int) {
+	start := time.Now()
+	result := block_matching(img1, img2, 8, 8, diff)
+	end := time.Now()
+	rate := psnr(img1, result)
+	ofile := fmt.Sprintf("result_%d.png", diff)
+	write_png(ofile, result)
+	log.Printf("%s, time: %v, psnr: %v\n", ofile, end.Sub(start), rate)
+}
+
 func main() {
 	log.SetFlags(log.Lshortfile)
 	if len(os.Args) != 3 {
@@ -73,44 +84,22 @@ func main() {
 		log.Println(err)
 	}
 
-	var start, end time.Time
-	var diff float64
-	var result image.Image
-
-	start = time.Now()
-	result = block_matching(src1, src2, 8, 8, 8)
-	end = time.Now()
-	diff = psnr(src1, result)
-	write_png("result8.png", result)
-	log.Printf("result8.png, time: %v, psnr: %v\n", end.Sub(start), diff)
-
-	start = time.Now()
-	result = block_matching(src1, src2, 8, 8, 16)
-	end = time.Now()
-	diff = psnr(src1, result)
-	write_png("result16.png", result)
-	log.Printf("result16.png, time: %v, psnr: %v\n", end.Sub(start), diff)
-
-	start = time.Now()
-	result = block_matching(src1, src2, 8, 8, 32)
-	end = time.Now()
-	diff = psnr(src1, result)
-	write_png("result32.png", result)
-	log.Printf("result32.png, time: %v, psnr: %v\n", end.Sub(start), diff)
+	eval(src1, src2, 4)
+	eval(src1, src2, 8)
+	eval(src1, src2, 16)
+	eval(src1, src2, 32)
 }
 
 func block_matching(src1, src2 image.Image, w, h, diff int) image.Image {
 	bounds := src1.Bounds()
 	ret := image.NewGray(bounds)
-	maxX := bounds.Max.X
-	maxY := bounds.Max.Y
+	maxX, maxY := bounds.Max.X, bounds.Max.Y
 	for x := 0; x < maxX; x += w {
 		for y := 0; y < maxY; y += h {
 			dx, dy := match(src1, src2, x, y, w, diff)
 			for i := 0; i < w; i++ {
 				for j := 0; j < h; j++ {
 					if x+i+dx < 0 || x+i+dx >= maxX || y+j+dy < 0 || y+j+dy >= maxY {
-						log.Println("out of range")
 						continue
 					}
 					tar, _, _, _ := src2.At(x+i+dx, y+j+dy).RGBA()
@@ -124,8 +113,7 @@ func block_matching(src1, src2 image.Image, w, h, diff int) image.Image {
 
 func match(src1, src2 image.Image, x, y, size, diff int) (retx, rety int) {
 	bounds := src1.Bounds()
-	maxX := bounds.Max.X
-	maxY := bounds.Max.Y
+	maxX, maxY := bounds.Max.X, bounds.Max.Y
 	var min int64 = 1 << 62
 	for i := -diff; i <= diff; i++ {
 		for j := -diff; j <= diff; j++ {
@@ -134,9 +122,7 @@ func match(src1, src2 image.Image, x, y, size, diff int) (retx, rety int) {
 			}
 			cur := mse(src1, src2, x, y, x+i, y+j, size)
 			if cur < min {
-				min = cur
-				retx = i
-				rety = j
+				min, retx, rety = cur, i, j
 			}
 		}
 	}
