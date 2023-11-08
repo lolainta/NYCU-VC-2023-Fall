@@ -53,12 +53,8 @@ func main() {
 }
 
 func block_matching(src1, src2 image.Image, w, h, diff int) image.Image {
-	if w != h {
-		log.Println("w != h")
-		return nil
-	}
-	ret := image.NewGray(src1.Bounds())
 	bounds := src1.Bounds()
+	ret := image.NewGray(bounds)
 	maxX := bounds.Max.X
 	maxY := bounds.Max.Y
 	for x := 0; x < maxX; x += w {
