@@ -48,7 +48,7 @@ func main() {
 	if err != nil {
 		log.Println(err)
 	}
-	result := block_matching(src1, src2, 8, 8, 8)
+	result := block_matching(src1, src2, 8, 8, 32)
 	write_png("result.png", result)
 }
 
@@ -99,9 +99,9 @@ func match(src1, src2 image.Image, x, y, size, diff int) (retx, rety int) {
 func mse(src1, src2 image.Image, x1, y1, x2, y2, size int) (sum int64) {
 	for i := 0; i < size; i++ {
 		for j := 0; j < size; j++ {
-			r1, g1, b1, _ := src1.At(x1+i, y1+j).RGBA()
-			r2, g2, b2, _ := src2.At(x2+i, y2+j).RGBA()
-			sum += int64((r1-r2)*(r1-r2) + (g1-g2)*(g1-g2) + (b1-b2)*(b1-b2))
+			v1, _, _, _ := src1.At(x1+i, y1+j).RGBA()
+			v2, _, _, _ := src2.At(x2+i, y2+j).RGBA()
+			sum += int64((v1>>8)-(v2>>8)) * int64((v1>>8)-(v2>>8))
 		}
 	}
 	return
