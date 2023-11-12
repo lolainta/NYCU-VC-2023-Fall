@@ -46,20 +46,20 @@ func psnr(img1, img2 *image.Image) float64 {
 	return ret
 }
 
-func eval(img1, img2 *image.Image, diff int) {
+func eval(img1, img2 *image.Image, fname string, diff int, method func(*image.Image, *image.Image, int, int, int) image.Image) {
 	start := time.Now()
-	result := block_matching(img1, img2, 8, 8, diff)
+	result := method(img1, img2, 8, 8, diff)
 	end := time.Now()
 	rate := psnr(img1, &result)
-	ofile := fmt.Sprintf("result_%d.png", diff)
+	ofile := fmt.Sprintf("output/%s.png", fname)
 	write_png(ofile, &result)
-	log.Printf("%s, time: %v, psnr: %v\n", ofile, end.Sub(start), rate)
+	log.Printf("%24s, time: %v, psnr: %v\n", ofile, end.Sub(start), rate)
 }
 
 func main() {
 	log.SetFlags(log.Lshortfile)
 	if len(os.Args) != 3 {
-		log.Println("Usage: go run main.go <img1.png> <img2.pnng>")
+		log.Println("Usage: go run main.go <img1.png> <img2.png>")
 		return
 	}
 	img1, err := os.Open(os.Args[1])
@@ -83,11 +83,13 @@ func main() {
 	if err != nil {
 		log.Println(err)
 	}
-
-	eval(&src1, &src2, 4)
-	eval(&src1, &src2, 8)
-	eval(&src1, &src2, 16)
-	eval(&src1, &src2, 32)
+	os.Mkdir("output", 0777)
+	eval(&src1, &src2, "block_4", 4, block_matching)
+	eval(&src1, &src2, "block_8", 8, block_matching)
+	eval(&src1, &src2, "block_16", 16, block_matching)
+	eval(&src1, &src2, "block_32", 32, block_matching)
+	eval(&src1, &src2, "three_step", 4, three_step)
+	eval(&src1, &src2, "full_search", 320, block_matching)
 }
 
 func block_matching(src1, src2 *image.Image, w, h, diff int) image.Image {
@@ -96,12 +98,9 @@ func block_matching(src1, src2 *image.Image, w, h, diff int) image.Image {
 	maxX, maxY := bounds.Max.X, bounds.Max.Y
 	for x := 0; x < maxX; x += w {
 		for y := 0; y < maxY; y += h {
-			dx, dy := match(src1, src2, x, y, w, diff)
+			dx, dy := match(src1, src2, x, y, w, diff, 1)
 			for i := 0; i < w; i++ {
 				for j := 0; j < h; j++ {
-					if x+i+dx < 0 || x+i+dx >= maxX || y+j+dy < 0 || y+j+dy >= maxY {
-						continue
-					}
 					tar, _, _, _ := (*src2).At(x+i+dx, y+j+dy).RGBA()
 					ret.SetGray(x+i, y+j, color.Gray{Y: uint8(tar >> 8)})
 				}
@@ -111,12 +110,32 @@ func block_matching(src1, src2 *image.Image, w, h, diff int) image.Image {
 	return ret
 }
 
-func match(src1, src2 *image.Image, x, y, size, diff int) (retx, rety int) {
+func three_step(src1, src2 *image.Image, w, h, diff int) image.Image {
+	bounds := (*src1).Bounds()
+	ret := image.NewGray(bounds)
+	maxX, maxY := bounds.Max.X, bounds.Max.Y
+	for x := 0; x < maxX; x += w {
+		for y := 0; y < maxY; y += h {
+			dx, dy := match(src1, src2, x, y, w, diff, diff)
+			dx1, dy1 := match(src1, src2, x+dx, y+dy, w, diff/2, diff/2)
+			dx2, dy2 := match(src1, src2, x+dx+dx1, y+dy+dy1, w, diff/4, diff/4)
+			for i := 0; i < w; i++ {
+				for j := 0; j < h; j++ {
+					tar, _, _, _ := (*src2).At(x+i+dx+dx1+dx2, y+j+dy+dy1+dy2).RGBA()
+					ret.SetGray(x+i, y+j, color.Gray{Y: uint8(tar >> 8)})
+				}
+			}
+		}
+	}
+	return ret
+}
+
+func match(src1, src2 *image.Image, x, y, size, bd, step int) (retx, rety int) {
 	bounds := (*src1).Bounds()
 	maxX, maxY := bounds.Max.X, bounds.Max.Y
 	var min int64 = 1 << 62
-	for i := -diff; i <= diff; i++ {
-		for j := -diff; j <= diff; j++ {
+	for i := -bd; i <= bd; i += step {
+		for j := -bd; j <= bd; j += step {
 			if x+i < 0 || x+i+size >= maxX || y+j < 0 || y+j+size >= maxY {
 				continue
 			}
