@@ -53,7 +53,7 @@ func eval(img1, img2 *image.Image, fname string, diff int, method func(*image.Im
 	rate := psnr(img1, &result)
 	ofile := fmt.Sprintf("output/%s.png", fname)
 	write_png(ofile, &result)
-	log.Printf("%24s, time: %v, psnr: %v\n", ofile, end.Sub(start), rate)
+	log.Printf("%-24s, time: %2v,\tpsnr: %v\n", ofile, end.Sub(start), rate)
 }
 
 func main() {
