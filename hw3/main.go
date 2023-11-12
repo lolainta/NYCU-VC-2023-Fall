@@ -46,14 +46,35 @@ func psnr(img1, img2 *image.Image) float64 {
 	return ret
 }
 
+func compare(img1, img2 *image.Image) image.Image {
+	bounds := (*img1).Bounds()
+	w, h := bounds.Max.X, bounds.Max.Y
+	if w != h {
+		log.Println("Image is not square")
+		return nil
+	}
+	ret := image.NewGray(bounds)
+	for i := 0; i < w; i++ {
+		for j := 0; j < h; j++ {
+			f1, _, _, _ := (*img1).At(i, j).RGBA()
+			f2, _, _, _ := (*img2).At(i, j).RGBA()
+			r1 := float64(f1) / 256
+			r2 := float64(f2) / 256
+			ret.SetGray(i, j, color.Gray{Y: uint8(math.Abs(r1 - r2))})
+		}
+	}
+	return ret
+}
+
 func eval(img1, img2 *image.Image, fname string, diff int, method func(*image.Image, *image.Image, int, int, int) image.Image) {
 	start := time.Now()
 	result := method(img1, img2, 8, 8, diff)
 	end := time.Now()
 	rate := psnr(img1, &result)
-	ofile := fmt.Sprintf("output/%s.png", fname)
-	write_png(ofile, &result)
-	log.Printf("%-24s, time: %2v,\tpsnr: %v\n", ofile, end.Sub(start), rate)
+	write_png(fmt.Sprintf("output/%s.png", fname), &result)
+	residule := compare(img1, &result)
+	write_png(fmt.Sprintf("output/%s_residule.png", fname), &residule)
+	log.Printf("%-15s time: %-15v psnr: %v\n", fname, end.Sub(start), rate)
 }
 
 func main() {
