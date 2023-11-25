@@ -181,7 +181,13 @@ func quantize(dct [][]float64) [][]int {
 	}
 	for i := 0; i < w; i++ {
 		for j := 0; j < h; j++ {
-			ret[i][j] = int(int8(dct[i][j]))
+			if dct[i][j] < math.MinInt8 {
+				ret[i][j] = math.MinInt8
+			} else if dct[i][j] > math.MaxInt8 {
+				ret[i][j] = math.MaxInt8
+			} else {
+				ret[i][j] = int(int8(dct[i][j]))
+			}
 		}
 	}
 	ret[0][0] = int(int16(dct[0][0]))
